@@ -18,7 +18,7 @@ import full_tests  # noqa: E402
 import log_test  # noqa: E402
 
 
-def tests_of(base):
+def read_logged_tests(base):
     path = Path(base) / "tests.jsonl"
     if not path.exists():
         return []
@@ -98,7 +98,7 @@ class LogTestTests(Base):
                           "--note", "taken the day after another full test")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("session id: test-saturn-20260825", result.stdout)
-        row = tests_of(self.base)[0]
+        row = read_logged_tests(self.base)[0]
         self.assertEqual(row["session"], "test-saturn-20260825")
         self.assertEqual(row["ts"], "2026-08-25T00:00:00")
         self.assertEqual(row["sections"], {"reading": 4, "listening": 5,
@@ -110,39 +110,39 @@ class LogTestTests(Base):
 
     def test_a_computed_overall_is_labelled_as_computed(self):
         self.toefl("Alpha", "2026-07-01", "4.0", "5.0", "4.5", "3.5")   # mean 4.25
-        row = tests_of(self.base)[0]
+        row = read_logged_tests(self.base)[0]
         self.assertEqual(row["overall"], 4.5)
         self.assertIs(row["overall_computed"], True)
 
     def test_no_overall_is_invented_from_a_partial_test(self):
         self.assertEqual(self.log("Half", "2026-07-01", "--reading", "4.0",
                                   "--listening", "5.0").returncode, 0)
-        self.assertNotIn("overall", tests_of(self.base)[0])
+        self.assertNotIn("overall", read_logged_tests(self.base)[0])
 
     def test_no_overall_is_computed_for_an_exam_with_another_rule(self):
         self.assertEqual(self.log("C1 mock", "2026-07-01", "--reading", "180",
                                   "--listening", "175", "--writing", "170",
                                   "--speaking", "185", exam="cefr-c1").returncode, 0)
-        self.assertNotIn("overall", tests_of(self.base)[0])
+        self.assertNotIn("overall", read_logged_tests(self.base)[0])
 
     def test_scores_off_the_scale_are_refused(self):
         for args in (["--reading", "7"], ["--reading", "4.3"],
                      ["--reading", "4", "--overall", "9"]):
             result = self.log("Bad", "2026-07-01", *args)
             self.assertEqual(result.returncode, 2, args)
-        self.assertEqual(tests_of(self.base), [])
+        self.assertEqual(read_logged_tests(self.base), [])
 
     def test_an_unknown_exam_is_accepted_without_a_range_check(self):
         result = self.log("Other", "2026-07-01", "--section", "literacy=135",
                           exam="some-other-exam")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(tests_of(self.base)[0]["sections"], {"literacy": 135})
+        self.assertEqual(read_logged_tests(self.base)[0]["sections"], {"literacy": 135})
 
     def test_other_sections_can_be_named(self):
         result = self.log("FCE", "2026-07-01", "--reading", "170",
                           "--section", "Use of English=165", exam="cefr-b2")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(tests_of(self.base)[0]["sections"],
+        self.assertEqual(read_logged_tests(self.base)[0]["sections"],
                          {"reading": 170, "use_of_english": 165})
 
     def test_input_errors_write_nothing(self):
@@ -155,14 +155,14 @@ class LogTestTests(Base):
                            "toefl-ibt", *args)
             self.assertEqual(result.returncode, 2, args)
             self.assertNotIn("Traceback", result.stderr)
-        self.assertEqual(tests_of(self.base), [])
+        self.assertEqual(read_logged_tests(self.base), [])
 
     def test_the_same_test_twice_needs_amend(self):
         self.toefl("Alpha", "2026-07-01", "4.0", "5.0", "4.5", "3.5")
         again = self.log("Alpha", "2026-07-01", "--reading", "4.5")
         self.assertEqual(again.returncode, 2)
         self.assertIn("--amend", again.stderr)
-        self.assertEqual(len(tests_of(self.base)), 1)
+        self.assertEqual(len(read_logged_tests(self.base)), 1)
 
     def test_amend_appends_and_the_newer_entry_wins(self):
         self.toefl("Alpha", "2026-07-01", "4.0", "5.0", "4.5", "3.5")
@@ -171,7 +171,7 @@ class LogTestTests(Base):
                          "5.0", "--writing", "4.5", "--speaking", "3.5", "--amend")
         self.assertEqual(fixed.returncode, 0, fixed.stderr)
         self.assertIn("amended test", fixed.stdout)
-        self.assertEqual(len(tests_of(self.base)), 3)      # nothing rewritten
+        self.assertEqual(len(read_logged_tests(self.base)), 3)      # nothing rewritten
         loaded = log_test.load_tests(self.base)
         self.assertEqual([t["name"] for t in loaded], ["Alpha", "Bravo"])
         self.assertEqual(loaded[0]["sections"]["reading"], 4.5)
